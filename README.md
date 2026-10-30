@@ -2,7 +2,7 @@
 
 [![Version](https://img.shields.io/github/v/tag/kobusm/AnkerHA?label=version&sort=semver)](https://github.com/kobusm/AnkerHA/tags)
 
-**Version 1.0.0**
+**Version 1.0.1**
 
 A Home Assistant custom integration for the **Anker SOLIX S5000** portable power station (model `AS510`). It also works with the **SOLIX S2000** (`AS220`), which shares the same MQTT message format.
 
