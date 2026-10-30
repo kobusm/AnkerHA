@@ -1,0 +1,42 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Anker SOLIX S5000",
+        "description": "Sign in with the Anker account that owns the S5000. Data and controls go through the Anker cloud and its MQTT server, so the device must be online.",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "country": "Country"
+        },
+        "data_description": {
+          "email": "The Anker app login of the device owner",
+          "country": "Two-letter country code used in the Anker app (e.g. US, DE, ZA)"
+        }
+      },
+      "device": {
+        "title": "Select device",
+        "description": "Several supported devices were found on this account.",
+        "data": {
+          "device_sn": "Device"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate",
+        "description": "The Anker cloud rejected the stored password for {email}.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Login failed. Check your email, password and country.",
+      "cannot_connect": "Cannot reach the Anker cloud. Try again later.",
+      "no_devices": "No unconfigured Anker SOLIX S5000 (or S2000) was found on this account. The account must own the device, not just be a shared member."
+    },
+    "abort": {
+      "already_configured": "This device is already configured.",
+      "reauth_successful": "Re-authentication was successful."
+    }
+  }
+}
