@@ -96,3 +96,41 @@ async def test_ac_charge_limit_max_follows_device(hass: HomeAssistant, mock_api)
         "number", "set_value", {"entity_id": eid, "value": 3000}, blocking=True
     )
     assert float(hass.states.get(eid).state) == 3000
+
+
+async def test_setup_with_cached_token(hass: HomeAssistant, mock_api):
+    """async_authenticate() returns False for a cached (not yet validated) token; that is not a failure."""
+    from unittest.mock import AsyncMock, patch
+
+    from .conftest import make_api
+
+    def cached(*args, **kwargs):
+        api = make_api(*args, **kwargs)
+        api.async_authenticate = AsyncMock(return_value=False)
+        mock_api.append(api)
+        return api
+
+    with patch("custom_components.anker_solix_s5000.coordinator.AnkerSolixApi", side_effect=cached):
+        entry = await _setup(hass)
+    assert entry.state is ConfigEntryState.LOADED
+
+
+async def test_rejected_credentials_trigger_reauth(hass: HomeAssistant, mock_api):
+    from unittest.mock import AsyncMock, patch
+
+    from custom_components.anker_solix_s5000.solixapi import errors
+
+    from .conftest import make_api
+
+    def rejected(*args, **kwargs):
+        api = make_api(*args, **kwargs)
+        api.update_sites = AsyncMock(side_effect=errors.AuthorizationError("Login failed"))
+        return api
+
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=DEVICE_SN, data=ENTRY_DATA)
+    entry.add_to_hass(hass)
+    with patch("custom_components.anker_solix_s5000.coordinator.AnkerSolixApi", side_effect=rejected):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    assert any(f["context"]["source"] == "reauth" for f in hass.config_entries.flow.async_progress())

@@ -67,8 +67,10 @@ class AnkerSolixCoordinator(DataUpdateCoordinator[dict]):
             _LOGGER,
         )
         try:
-            if not await self.api.async_authenticate():
-                raise ConfigEntryAuthFailed("Anker login failed")
+            # The return value is False when a cached token was merely loaded
+            # (the config flow just cached one); the first request validates it
+            # and re-logs in on 401. Real rejections arrive as exceptions.
+            await self.api.async_authenticate()
             await self.api.update_sites()
             await self.api.get_bind_devices()
         except _AUTH_ERRORS as err:
