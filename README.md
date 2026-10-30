@@ -1,5 +1,9 @@
 # Anker SOLIX S5000 — Home Assistant Integration
 
+[![Version](https://img.shields.io/github/v/tag/kobusm/AnkerHA?label=version&sort=semver)](https://github.com/kobusm/AnkerHA/tags)
+
+**Version 1.0.0**
+
 A Home Assistant custom integration for the **Anker SOLIX S5000** portable power station (model `AS510`). It also works with the **SOLIX S2000** (`AS220`), which shares the same MQTT message format.
 
 Unlike the EcoFlow Delta Pro, the S5000 has no documented local API. This integration therefore uses the **Anker cloud** to log in and find the device, then the **Anker MQTT server** for real-time push data and control. It is built on [thomluther/anker-solix-api](https://github.com/thomluther/anker-solix-api), which is vendored into the integration so no extra Python package is needed.
