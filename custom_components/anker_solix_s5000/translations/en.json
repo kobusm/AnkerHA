@@ -30,8 +30,9 @@
       }
     },
     "error": {
-      "invalid_auth": "Login failed. Check your email, password and country.",
-      "cannot_connect": "Cannot reach the Anker cloud. Try again later.",
+      "invalid_auth": "Anker rejected the login: {error_detail}. Check the email and password (accounts created with Apple/Google sign-in need a password set in the Anker app first) and that the country matches the region chosen in the Anker app.",
+      "verify_code": "Anker asked for an email verification code: {error_detail}. Sign in once in the Anker app on a phone, then try again.",
+      "cannot_connect": "Cannot reach the Anker cloud: {error_detail}",
       "no_devices": "No unconfigured Anker SOLIX S5000 (or S2000) was found on this account. The account must own the device, not just be a shared member."
     },
     "abort": {

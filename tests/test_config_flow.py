@@ -1,6 +1,8 @@
 """Config flow."""
 from unittest.mock import patch
 
+import pytest
+
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
@@ -8,6 +10,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.anker_solix_s5000.config_flow import InvalidAuth
 from custom_components.anker_solix_s5000.const import DOMAIN
+from custom_components.anker_solix_s5000.solixapi import errors
 
 from .conftest import DEVICE, DEVICE_SN, ENTRY_DATA
 
@@ -85,3 +88,43 @@ async def test_reauth_updates_password(hass: HomeAssistant):
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reauth_successful"
     assert entry.data["password"] == "new-password"
+
+
+API = "custom_components.anker_solix_s5000.config_flow.AnkerSolixApi"
+
+
+def _api_raising(exc: Exception):
+    from unittest.mock import AsyncMock, MagicMock
+
+    api = MagicMock()
+    api.async_authenticate = AsyncMock(side_effect=exc)
+    return api
+
+
+@pytest.mark.parametrize(
+    ("exc", "error"),
+    [
+        (errors.InvalidCredentialsError("(26156) Anker Api Error: wrong password"), "invalid_auth"),
+        (errors.AuthorizationError("Login failed for user x"), "invalid_auth"),
+        (errors.NeedVerifyCodeError("(26052) Anker Api Error: need code"), "verify_code"),
+        (errors.BusyError("(21105) busy"), "cannot_connect"),
+    ],
+)
+async def test_library_errors_shown_with_anker_message(hass: HomeAssistant, exc, error):
+    result = await _start(hass)
+    with patch(API, return_value=_api_raising(exc)):
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+    assert result["errors"] == {"base": error}
+    assert result["description_placeholders"]["error_detail"] == str(exc)
+
+
+async def test_login_forces_fresh_token(hass: HomeAssistant):
+    from unittest.mock import AsyncMock, MagicMock
+
+    api = MagicMock()
+    api.async_authenticate = AsyncMock(return_value=False)
+    result = await _start(hass)
+    with patch(API, return_value=api):
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+    api.async_authenticate.assert_awaited_once_with(restart=True)
+    assert result["errors"] == {"base": "invalid_auth"}

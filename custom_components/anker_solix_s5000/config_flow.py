@@ -24,23 +24,70 @@ class InvalidAuth(Exception):
     """Credentials rejected by the Anker cloud."""
 
 
+class VerifyCodeRequired(Exception):
+    """Anker wants an emailed verification code before allowing this login."""
+
+
+class CannotConnect(Exception):
+    """Anker cloud unreachable or returned an unexpected error."""
+
+
+_VERIFY_ERRORS = (
+    errors.VerifyCodeError,
+    errors.VerifyCodeExpiredError,
+    errors.NeedVerifyCodeError,
+    errors.VerifyCodeMaxError,
+    errors.VerifyCodeNoneMatchError,
+    errors.VerifyCodePasswordError,
+)
+
+
 async def _discover_devices(
     hass: HomeAssistant, email: str, password: str, country: str
 ) -> dict[str, dict]:
-    """Log in and return {serial: device} for supported models on the account."""
+    """Log in and return {serial: device} for supported models on the account.
+
+    Raised exceptions carry Anker's own error text so the form can show it.
+    """
     api = AnkerSolixApi(email, password, country, async_get_clientsession(hass), _LOGGER)
     try:
-        if not await api.async_authenticate():
-            raise InvalidAuth
+        # restart=True ignores the library's cached token for this email, so the
+        # entered password is really checked (matters for reauth)
+        if not await api.async_authenticate(restart=True):
+            raise InvalidAuth("Anker returned no login token")
+        await api.update_sites()
+        await api.get_bind_devices()
     except (errors.AuthorizationError, errors.InvalidCredentialsError) as err:
-        raise InvalidAuth from err
-    await api.update_sites()
-    await api.get_bind_devices()
+        _LOGGER.warning("Anker login rejected for %s (%s): %s", email, country, err)
+        raise InvalidAuth(str(err)) from err
+    except _VERIFY_ERRORS as err:
+        _LOGGER.warning("Anker login for %s needs verification: %s", email, err)
+        raise VerifyCodeRequired(str(err)) from err
+    except errors.AnkerSolixError as err:
+        _LOGGER.warning("Anker cloud error for %s (%s): %s", email, country, err)
+        raise CannotConnect(str(err)) from err
     return {
         sn: dev
         for sn, dev in api.devices.items()
         if dev.get("device_pn") in SUPPORTED_MODELS
     }
+
+
+async def _try_discover(
+    hass: HomeAssistant, email: str, password: str, country: str
+) -> tuple[dict[str, dict] | None, str | None, str]:
+    """Run discovery; return (devices, error_key, Anker's error text)."""
+    try:
+        return await _discover_devices(hass, email, password, country), None, ""
+    except InvalidAuth as err:
+        return None, "invalid_auth", str(err)
+    except VerifyCodeRequired as err:
+        return None, "verify_code", str(err)
+    except CannotConnect as err:
+        return None, "cannot_connect", str(err)
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.exception("Unexpected error talking to the Anker cloud")
+        return None, "cannot_connect", str(err) or type(err).__name__
 
 
 def _title(dev: dict) -> str:
@@ -60,6 +107,7 @@ class AnkerSolixS5000ConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         errors_: dict[str, str] = {}
+        detail = ""
 
         if user_input is not None:
             creds = {
@@ -67,15 +115,11 @@ class AnkerSolixS5000ConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_PASSWORD: user_input[CONF_PASSWORD],
                 CONF_COUNTRY: user_input[CONF_COUNTRY].strip().upper(),
             }
-            try:
-                devices = await _discover_devices(
-                    self.hass, creds[CONF_EMAIL], creds[CONF_PASSWORD], creds[CONF_COUNTRY]
-                )
-            except InvalidAuth:
-                errors_["base"] = "invalid_auth"
-            except Exception:  # noqa: BLE001
-                _LOGGER.exception("Unexpected error talking to the Anker cloud")
-                errors_["base"] = "cannot_connect"
+            devices, error, detail = await _try_discover(
+                self.hass, creds[CONF_EMAIL], creds[CONF_PASSWORD], creds[CONF_COUNTRY]
+            )
+            if error:
+                errors_["base"] = error
             else:
                 configured = self._async_current_ids()
                 devices = {sn: d for sn, d in devices.items() if sn not in configured}
@@ -96,7 +140,18 @@ class AnkerSolixS5000ConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_COUNTRY, default=country): str,
             }
         )
-        return self.async_show_form(step_id="user", data_schema=schema, errors=errors_)
+        if user_input is not None:
+            # keep email and country after a failed attempt
+            schema = self.add_suggested_values_to_schema(
+                schema,
+                {CONF_EMAIL: user_input[CONF_EMAIL], CONF_COUNTRY: user_input[CONF_COUNTRY]},
+            )
+        return self.async_show_form(
+            step_id="user",
+            data_schema=schema,
+            errors=errors_,
+            description_placeholders={"error_detail": detail},
+        )
 
     async def async_step_device(
         self, user_input: dict[str, Any] | None = None
@@ -127,21 +182,18 @@ class AnkerSolixS5000ConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         errors_: dict[str, str] = {}
+        detail = ""
         entry = self._get_reauth_entry()
 
         if user_input is not None:
-            try:
-                await _discover_devices(
-                    self.hass,
-                    entry.data[CONF_EMAIL],
-                    user_input[CONF_PASSWORD],
-                    entry.data[CONF_COUNTRY],
-                )
-            except InvalidAuth:
-                errors_["base"] = "invalid_auth"
-            except Exception:  # noqa: BLE001
-                _LOGGER.exception("Unexpected error talking to the Anker cloud")
-                errors_["base"] = "cannot_connect"
+            _, error, detail = await _try_discover(
+                self.hass,
+                entry.data[CONF_EMAIL],
+                user_input[CONF_PASSWORD],
+                entry.data[CONF_COUNTRY],
+            )
+            if error:
+                errors_["base"] = error
             else:
                 return self.async_update_reload_and_abort(
                     entry, data_updates={CONF_PASSWORD: user_input[CONF_PASSWORD]}
@@ -150,6 +202,6 @@ class AnkerSolixS5000ConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="reauth_confirm",
             data_schema=vol.Schema({vol.Required(CONF_PASSWORD): str}),
-            description_placeholders={"email": entry.data[CONF_EMAIL]},
+            description_placeholders={"email": entry.data[CONF_EMAIL], "error_detail": detail},
             errors=errors_,
         )
