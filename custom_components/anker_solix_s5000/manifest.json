@@ -3,10 +3,10 @@
   "name": "Anker SOLIX S5000",
   "codeowners": ["@kobusm"],
   "config_flow": true,
-  "documentation": "https://github.com/kobusm/Anker-Solix-S5000-HA",
+  "documentation": "https://github.com/kobusm/AnkerHA",
   "integration_type": "device",
   "iot_class": "cloud_push",
-  "issue_tracker": "https://github.com/kobusm/Anker-Solix-S5000-HA/issues",
+  "issue_tracker": "https://github.com/kobusm/AnkerHA/issues",
   "loggers": ["custom_components.anker_solix_s5000"],
   "requirements": ["aiofiles>=24.1.0", "paho-mqtt>=2.1.0"],
   "version": "0.1.0"
