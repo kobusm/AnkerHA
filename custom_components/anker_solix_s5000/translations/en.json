@@ -33,11 +33,12 @@
       "invalid_auth": "Anker rejected the login: {error_detail}. Check the email and password (accounts created with Apple/Google sign-in need a password set in the Anker app first) and that the country matches the region chosen in the Anker app.",
       "verify_code": "Anker asked for an email verification code: {error_detail}. Sign in once in the Anker app on a phone, then try again.",
       "cannot_connect": "Cannot reach the Anker cloud: {error_detail}",
-      "no_devices": "No unconfigured Anker SOLIX S5000 (or S2000) was found on this account. The account must own the device, not just be a shared member."
+      "no_devices": "No Anker SOLIX S5000 (model AS510) or S2000 (AS220) was found on this account. Devices found: {error_detail}. The account must own the device, not just be a shared member."
     },
     "abort": {
       "already_configured": "This device is already configured.",
-      "reauth_successful": "Re-authentication was successful."
+      "reauth_successful": "Re-authentication was successful.",
+      "device_already_configured": "{devices} is already set up in Home Assistant. If that entry failed earlier, delete it under Settings → Devices & services → Anker SOLIX S5000, then add the integration again."
     }
   }
 }

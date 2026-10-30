@@ -66,12 +66,31 @@ async def test_cannot_connect(hass: HomeAssistant):
     assert result["errors"] == {"base": "cannot_connect"}
 
 
-async def test_already_configured_device_is_skipped(hass: HomeAssistant):
+async def test_already_configured_device_aborts_with_hint(hass: HomeAssistant):
+    """A leftover entry (e.g. from a failed setup) must be named, not reported as 'no devices'."""
     MockConfigEntry(domain=DOMAIN, unique_id=DEVICE_SN, data=ENTRY_DATA).add_to_hass(hass)
     result = await _start(hass)
     with patch(DISCOVER, return_value={DEVICE_SN: DEVICE}):
         result = await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "device_already_configured"
+    assert result["description_placeholders"]["devices"] == "Garage S5000 (model AS510)"
+
+
+async def test_no_supported_device_lists_what_was_found(hass: HomeAssistant):
+    other = {"device_sn": "X1", "device_pn": "A1790", "alias": "Shed F3800"}
+    result = await _start(hass)
+    with patch(DISCOVER, return_value={"X1": other}):
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
     assert result["errors"] == {"base": "no_devices"}
+    assert result["description_placeholders"]["error_detail"] == "Shed F3800 (model A1790)"
+
+
+async def test_empty_account(hass: HomeAssistant):
+    result = await _start(hass)
+    with patch(DISCOVER, return_value={}):
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+    assert result["description_placeholders"]["error_detail"] == "none"
 
 
 async def test_reauth_updates_password(hass: HomeAssistant):

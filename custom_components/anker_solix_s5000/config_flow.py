@@ -45,7 +45,7 @@ _VERIFY_ERRORS = (
 async def _discover_devices(
     hass: HomeAssistant, email: str, password: str, country: str
 ) -> dict[str, dict]:
-    """Log in and return {serial: device} for supported models on the account.
+    """Log in and return {serial: device} for every device on the account.
 
     Raised exceptions carry Anker's own error text so the form can show it.
     """
@@ -66,11 +66,22 @@ async def _discover_devices(
     except errors.AnkerSolixError as err:
         _LOGGER.warning("Anker cloud error for %s (%s): %s", email, country, err)
         raise CannotConnect(str(err)) from err
-    return {
-        sn: dev
-        for sn, dev in api.devices.items()
-        if dev.get("device_pn") in SUPPORTED_MODELS
-    }
+    _LOGGER.debug(
+        "Anker account %s devices: %s",
+        email,
+        {sn: dev.get("device_pn") for sn, dev in api.devices.items()},
+    )
+    return dict(api.devices)
+
+
+def _describe(devices: dict[str, dict]) -> str:
+    """Short list of what the account returned, for the no-devices error."""
+    if not devices:
+        return "none"
+    return ", ".join(
+        f"{d.get('alias') or d.get('device_name') or 'unnamed'} (model {d.get('device_pn') or '?'})"
+        for d in devices.values()
+    )
 
 
 async def _try_discover(
@@ -121,11 +132,22 @@ class AnkerSolixS5000ConfigFlow(ConfigFlow, domain=DOMAIN):
             if error:
                 errors_["base"] = error
             else:
-                configured = self._async_current_ids()
-                devices = {sn: d for sn, d in devices.items() if sn not in configured}
-                if not devices:
+                supported = {
+                    sn: d for sn, d in devices.items() if d.get("device_pn") in SUPPORTED_MODELS
+                }
+                configured = self._async_current_ids(include_ignore=False)
+                new = {sn: d for sn, d in supported.items() if sn not in configured}
+                if supported and not new:
+                    # e.g. an entry left over from an earlier failed setup
+                    return self.async_abort(
+                        reason="device_already_configured",
+                        description_placeholders={"devices": _describe(supported)},
+                    )
+                if not new:
                     errors_["base"] = "no_devices"
+                    detail = _describe(devices)
                 else:
+                    devices = new
                     self._credentials = creds
                     self._devices = devices
                     if len(devices) == 1:
