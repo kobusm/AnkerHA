@@ -8,7 +8,7 @@ A Home Assistant custom integration for the **Anker SOLIX S5000** portable power
 
 Unlike the EcoFlow Delta Pro, the S5000 has no documented local API. This integration therefore uses the **Anker cloud** to log in and find the device, then the **Anker MQTT server** for real-time push data and control. It is built on [thomluther/anker-solix-api](https://github.com/thomluther/anker-solix-api), which is vendored into the integration so no extra Python package is needed.
 
-> **Status: early / unverified on real S5000 hardware.** The library knows the S5000's model code but doesn't decode its MQTT messages yet. This integration teaches it to read the S5000 with the S2000's message map (see [How It Works](#how-it-works)). Field names and controls are validated against the S2000. Please report anything that reads wrong on an S5000 (see [Contributing](#contributing)).
+> **Status: tested on a real Anker SOLIX S5000.** The library knows the S5000's model code but doesn't decode its MQTT messages itself. This integration reads them with the S2000's message map, which works on the S5000 (see [How It Works](#how-it-works)). S2000 support comes from the library's S2000 mapping and hasn't been tested on S2000 hardware by this project. Please report anything that reads wrong (see [Contributing](#contributing)).
 
 ## Requirements
 
